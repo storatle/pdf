@@ -20,46 +20,63 @@ import math
 import argparse
 import subprocess
 import sys
-# document: https://pythonhosted.org/PyPDF2/
+
+# Paper size constants (width, height, diagonal)
+PAPER_SIZES = {
+    'A3': {'width': 842, 'height': 1190, 'diagonal': 1457},
+    'A4': {'width': 595, 'height': 842, 'diagonal': 1031},
+}
+
 def pdf_merger(fname, newSize, pdf, output, fill, rotate):
     print("Merge PDF...")
     numPages = len(pdf.pages)
+
+    # Validate PDF has pages
+    if numPages == 0:
+        raise ValueError("PDF file has no pages")
+
+    # Get first page dimensions
     pageWidth = math.ceil(pdf.pages[0].mediabox.width)
     pageHeight = math.ceil(pdf.pages[0].mediabox.height)
+
+    # Validate all pages have the same dimensions
+    for i, page in enumerate(pdf.pages):
+        width = math.ceil(page.mediabox.width)
+        height = math.ceil(page.mediabox.height)
+        if width != pageWidth or height != pageHeight:
+            raise ValueError(f"Page {i+1} has different dimensions ({width}x{height}) than first page ({pageWidth}x{pageHeight})")
+
     pageDiagonal = math.sqrt(pageWidth**2 + pageHeight**2)
     print('pageWidth: {}, pageHeight: {}, pageDiagonal: {}'.format(pageWidth,pageHeight,pageDiagonal))
 
-    numNewPages = 1 
-    if (newSize == 'A4'):
-        newWidth = 595
-        newHeight = 842
-        newDiagonal = 1031
-        
+    numNewPages = 1
+    if newSize == 'A4':
+        newWidth = PAPER_SIZES['A4']['width']
+        newHeight = PAPER_SIZES['A4']['height']
+        newDiagonal = PAPER_SIZES['A4']['diagonal']
     else:
-        newSize = 'A3'# A3
-        newWidth = 842
-        newHeight = 1190
-        newDiagonal = 1457
+        newSize = 'A3'
+        newWidth = PAPER_SIZES['A3']['width']
+        newHeight = PAPER_SIZES['A3']['height']
+        newDiagonal = PAPER_SIZES['A3']['diagonal']
 
     print('newWidth: {}, newHeight: {}, newDiagonal: {}'.format(newWidth,newHeight,newDiagonal))
     print('........................................')
-    print('Numer of pages to merge: {}'.format(numPages))
+    print('Number of pages to merge: {}'.format(numPages))
     print('Input file: {}.pdf, size: {}'.format(fname,newSize))
 
-    # Finn ut hvor mange sider du skal fylle
     if (round(pageDiagonal/newDiagonal,1) == 1.0):
         if (newSize == 'A4'):
-            print("Øker arkstørrelse til A3")
-            newWidth = 842
-            newHeight = 1190
-            newDiagonal = 1457
-
+            print("Increasing paper size to A3")
+            newWidth = PAPER_SIZES['A3']['width']
+            newHeight = PAPER_SIZES['A3']['height']
+            newDiagonal = PAPER_SIZES['A3']['diagonal']
         else:
-            print("kan ikke sammenstille denne filen")
+            print("Cannot merge this file")
     if (round(pageDiagonal/newDiagonal,1) == 0.7):
         numNewPages = math.ceil(numPages/2)
         print("A5 -> A4 or A4 -> A3 , {} pages".format(numNewPages))
-        if rotate:  # I tilfellet man har landscape
+        if rotate:
             indices = create_matrix(1,2)
             rotate = 'portrait'
         else:
@@ -79,14 +96,14 @@ def pdf_merger(fname, newSize, pdf, output, fill, rotate):
         print("A6 -> A3, {} pages".format(numNewPages))
 
     elif(round(pageDiagonal/newDiagonal,2) == 0.25):
-        numNewPages = math.ceil(numPages/10)
-        indices = create_matrix(6,4)
+        numNewPages = math.ceil(numPages/16)
+        indices = create_matrix(4,4)
         rotate = 'portrait'
         print("A7 -> A4, {} pages".format(numNewPages))
     
 
-    else: 
-            print("Ukjent størrelse på ark")
+    else:
+            print("Unknown paper size")
     
 
     print('........................................')
@@ -101,13 +118,12 @@ def pdf_merger(fname, newSize, pdf, output, fill, rotate):
         if (numPages == 1):
             page = 0
             fullPage = True
-            for i in range(len(indices)): # Arket blir fyllt opp
+            for i in range(len(indices)):
                 print('{}_part'.format(page+1))
                 sub_page = pdf.pages[page]
                 sub_page.add_transformation(Transformation().translate(indices[i][0]*pageWidth , indices[i][1]*pageHeight))
                 translated_page.merge_page(sub_page)
-                #translated_page.mergeTranslatedPage(sub_page, indices[i][0]*pageHeight , indices[i][1]*pageWidth)
-            writer.addPage(translated_page)
+            writer.add_page(translated_page)
                 
         else:
             print("else?")
@@ -116,15 +132,11 @@ def pdf_merger(fname, newSize, pdf, output, fill, rotate):
             print('{}_part'.format(page+1))
             sub_page = pdf.pages[page]
             sub_page.add_transformation(Transformation().translate(indices[i][0]*pageWidth , indices[i][1]*pageHeight))
-            #translated_page.mergeTranslatedPage(sub_page, indices[i][0]*pageWidth , indices[i][1]*pageHeight)
             translated_page.merge_page(sub_page)
-            #translated_page.mergeTranslatedPage(sub_page, indices[i][0]*pageHeight , indices[i][1]*pageWidth)
             i+=1
             fullPage = False
             if (i > len(indices)-1):
-    #            print("New page")
                 i = 0
-                # create page to writer
                 writer.add_page(translated_page)
                 fullPage = True
                 if (rotate == 'portrait'):
@@ -133,9 +145,14 @@ def pdf_merger(fname, newSize, pdf, output, fill, rotate):
                     translated_page = PageObject.create_blank_page(None, newHeight, newWidth) 
     if not fullPage:
         writer.add_page(translated_page)
-    with open(output, 'wb') as f:
-        writer.write(f)
-    
+
+    try:
+        with open(output, 'wb') as f:
+            writer.write(f)
+    except IOError as e:
+        print(f"Error writing output file '{output}': {e}")
+        raise
+
     print('........................................')
     print('{} is written'.format(output))
 
@@ -144,19 +161,17 @@ def create_matrix(n,m):
     for i in range(m,0,-1):
         for j in range(n):
             matrix.append([j,i-1])
-    #print(matrix)
     return matrix
 
-# pdf_splitter.py
 def pdf_splitter(path):
     print("Split PDF...")
 
     fname = os.path.splitext(os.path.basename(path))[0]
 
-    pdf = PdfeReader(path)
-    for page in range(pdf.getNumPages()):
-        pdf_writer = PdfFileWriter()
-        pdf_writer.addPage(pdf.pages[page])
+    pdf = PdfReader(path)
+    for page in range(len(pdf.pages)):
+        pdf_writer = PdfWriter()
+        pdf_writer.add_page(pdf.pages[page])
         output_filename = '{}_page_{}.pdf'.format(
             fname, page+1)
 
@@ -175,22 +190,32 @@ def main():
     parser.add_argument('-s', '--size', help='size of out paper A4 or A3')
     parser.add_argument('-f', '--fill', action='store_true', default=False, help="Fill page if only one page in input file")
     parser.add_argument('-r', '--rotate', action='store_true', default=False, help="Set orientation of original file.")
-#    parser.add_argument('--split', action='store_true', help="Split into separate files, and not merge")
     parser.add_argument('--open', action='store_true', default=False,
                         help='Open PDF after merging')
     args = parser.parse_args()
-    pdf = PdfReader(args.input)
+
+    try:
+        pdf = PdfReader(args.input)
+    except FileNotFoundError:
+        print(f"Error: Input file '{args.input}' not found.")
+        sys.exit(1)
+    except Exception as e:
+        print(f"Error reading PDF file: {e}")
+        sys.exit(1)
+
     fname = os.path.splitext(os.path.basename(args.input))[0]
     if not args.size:
         args.size = "A4"
     if not args.out:
         args.out = '{}_out.pdf'.format(fname)
-#    if args.split:
-#        pdf_splitter(args.input)
-#    else:
-    pdf_merger(fname, args.size, pdf, args.out,args.fill,args.rotate)
- 
-    if args.open: # and not args.split:
+
+    try:
+        pdf_merger(fname, args.size, pdf, args.out,args.fill,args.rotate)
+    except Exception as e:
+        print(f"Error merging PDF: {e}")
+        sys.exit(1)
+
+    if args.open:
         if sys.platform == "win32":
             subprocess.call(["explorer.exe", args.out])
         else:
