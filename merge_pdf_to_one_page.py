@@ -1,18 +1,23 @@
+#!/usr/bin/env python
 """Merge pdfs to one page
 Script that merges all pages in one pdf file to one page
-4 * A6 -> A4
-2 * A5 -> A4
-8 * A6 -> A3
-4 * A5 -> A3
-2 * A4 -> A3
 
-The pages in the input file must have same size and in A6, A5 or A4 format
+Supported conversions:
+- 2 * A5 -> A4 (landscape)
+- 2 * A4 -> A3 (landscape)
+- 4 * A6 -> A4 (2x2 grid)
+- 4 * A5 -> A3 (2x2 grid)
+- 8 * A7 -> A4 (4x2 grid)
+- 8 * A6 -> A3 (4x2 grid)
+- 16 * A8 -> A4 (4x4 grid)
+- 16 * A7 -> A3 (4x4 grid)
+- 32 * A8 -> A3 (8x4 grid)
+
+The pages in the input file must have the same size (A4, A5, A6, A7, or A8)
 If input file has only one page you can fill the page with the -f (--fill) argument
 You can override paper size with -s (--size) argument
 
 """
-
-#!/usr/bin/env python
 from PyPDF2 import PdfReader, PdfWriter, Transformation
 from PyPDF2 import PageObject
 import os
@@ -27,7 +32,7 @@ PAPER_SIZES = {
     'A4': {'width': 595, 'height': 842, 'diagonal': 1031},
 }
 
-def pdf_merger(fname, newSize, pdf, output, fill, rotate):
+def pdf_merger(fname, newSize, pdf, output, fill, force_portrait):
     print("Merge PDF...")
     numPages = len(pdf.pages)
 
@@ -73,55 +78,61 @@ def pdf_merger(fname, newSize, pdf, output, fill, rotate):
             newDiagonal = PAPER_SIZES['A3']['diagonal']
         else:
             print("Cannot merge this file")
+    # Ratio 0.7 ≈ 1/√2: One step smaller (A5→A4, A4→A3)
     if (round(pageDiagonal/newDiagonal,1) == 0.7):
         numNewPages = math.ceil(numPages/2)
         print("A5 -> A4 or A4 -> A3 , {} pages".format(numNewPages))
-        if rotate:
+        if force_portrait:
             indices = create_matrix(1,2)
-            rotate = 'portrait'
+            orientation = 'portrait'
         else:
             indices = create_matrix(2,1)
-            rotate = 'landscape'
+            orientation = 'landscape'
 
+    # Ratio 0.5 ≈ (1/√2)²: Two steps smaller (A6→A4, A5→A3)
     elif(round(pageDiagonal/newDiagonal,1) == 0.5):
         numNewPages = math.ceil(numPages/4)
         indices = create_matrix(2,2)
         print("A6 -> A4 or A5 -> A3, {} pages".format(numNewPages))
-        rotate = 'portrait'
+        orientation = 'portrait'
 
+    # Ratio 0.35 ≈ (1/√2)³: Three steps smaller (A7→A4, A6→A3)
     elif(round(pageDiagonal/newDiagonal,2) == 0.35):
         numNewPages = math.ceil(numPages/8)
         indices = create_matrix(4,2)
-        rotate = 'landscape'
+        orientation = 'landscape'
         if newSize == 'A4':
             print("A7 -> A4, {} pages".format(numNewPages))
         else:
             print("A6 -> A3, {} pages".format(numNewPages))
 
+    # Ratio 0.25 ≈ (1/√2)⁴: Four steps smaller (A8→A4, A7→A3)
     elif(round(pageDiagonal/newDiagonal,2) == 0.25):
         numNewPages = math.ceil(numPages/16)
         indices = create_matrix(4,4)
-        rotate = 'portrait'
+        orientation = 'portrait'
         if newSize == 'A3':
             print("A7 -> A3, {} pages".format(numNewPages))
         else:
             print("A8 -> A4, {} pages".format(numNewPages))
 
+    # Ratio 0.18 ≈ (1/√2)⁵: Five steps smaller (A8→A3)
     elif(round(pageDiagonal/newDiagonal,2) == 0.18):
         numNewPages = math.ceil(numPages/32)
         indices = create_matrix(8,4)
-        rotate = 'landscape'
+        orientation = 'landscape'
         print("A8 -> A3, {} pages".format(numNewPages))
 
     else:
-            print("Unknown paper size")
-    
+        print(f"Unknown paper size: diagonal ratio {round(pageDiagonal/newDiagonal,2)}")
+        raise ValueError(f"Unsupported page size conversion. Input diagonal: {pageDiagonal:.2f}, Output diagonal: {newDiagonal:.2f}")
+
 
     print('........................................')
     writer = PdfWriter()
-        
-    if (rotate == 'portrait'):
-        translated_page = PageObject.create_blank_page(None, newWidth, newHeight) 
+
+    if (orientation == 'portrait'):
+        translated_page = PageObject.create_blank_page(None, newWidth, newHeight)
     else:
         translated_page = PageObject.create_blank_page(None, newHeight, newWidth) 
     i = 0
@@ -154,7 +165,7 @@ def pdf_merger(fname, newSize, pdf, output, fill, rotate):
                 i = 0
                 writer.add_page(translated_page)
                 fullPage = True
-                if (rotate == 'portrait'):
+                if (orientation == 'portrait'):
                     translated_page = PageObject.create_blank_page(None, newWidth, newHeight)
                 else:
                     translated_page = PageObject.create_blank_page(None, newHeight, newWidth)
@@ -171,28 +182,18 @@ def pdf_merger(fname, newSize, pdf, output, fill, rotate):
     print('........................................')
     print('{} is written'.format(output))
 
-def create_matrix(n,m):
+def create_matrix(n, m):
+    """Create a position matrix for arranging pages in an n×m grid.
+
+    Pages are arranged from top to bottom, left to right.
+    Returns list of [x, y] coordinates where x is column (0 to n-1)
+    and y is row (0 to m-1), starting from top-left.
+    """
     matrix = []
-    for i in range(m,0,-1):
+    for i in range(m, 0, -1):
         for j in range(n):
-            matrix.append([j,i-1])
+            matrix.append([j, i-1])
     return matrix
-
-def pdf_splitter(path):
-    print("Split PDF...")
-
-    fname = os.path.splitext(os.path.basename(path))[0]
-
-    pdf = PdfReader(path)
-    for page in range(len(pdf.pages)):
-        pdf_writer = PdfWriter()
-        pdf_writer.add_page(pdf.pages[page])
-        output_filename = '{}_page_{}.pdf'.format(
-            fname, page+1)
-
-        with open(output_filename, 'wb') as out:
-            pdf_writer.write(out)
-        print('Created: {}'.format(output_filename))
 
 def main():
     parser = argparse.ArgumentParser(
@@ -225,7 +226,7 @@ def main():
         args.out = '{}_out.pdf'.format(fname)
 
     try:
-        pdf_merger(fname, args.size, pdf, args.out,args.fill,args.rotate)
+        pdf_merger(fname, args.size, pdf, args.out, args.fill, args.rotate)
     except Exception as e:
         print(f"Error merging PDF: {e}")
         sys.exit(1)
