@@ -18,6 +18,7 @@ If input file has only one page you can fill the page with the -f (--fill) argum
 You can override paper size with -s (--size) argument
 
 """
+from typing import List
 from PyPDF2 import PdfReader, PdfWriter, Transformation
 from PyPDF2 import PageObject
 import os
@@ -26,62 +27,66 @@ import argparse
 import subprocess
 import sys
 
-# Paper size constants (width, height, diagonal)
+# Paper size constants (width, height in points)
 PAPER_SIZES = {
-    'A3': {'width': 842, 'height': 1190, 'diagonal': 1457},
-    'A4': {'width': 595, 'height': 842, 'diagonal': 1031},
+    'A3': {'width': 842, 'height': 1190},
+    'A4': {'width': 595, 'height': 842},
 }
 
-def pdf_merger(fname, newSize, pdf, output, fill, force_portrait):
+def get_diagonal(width: int, height: int) -> float:
+    """Calculate diagonal length from width and height."""
+    return math.sqrt(width**2 + height**2)
+
+def pdf_merger(fname: str, new_size: str, pdf: PdfReader, output: str, fill: bool, force_portrait: bool) -> None:
     print("Merge PDF...")
-    numPages = len(pdf.pages)
+    num_pages = len(pdf.pages)
 
     # Validate PDF has pages
-    if numPages == 0:
+    if num_pages == 0:
         raise ValueError("PDF file has no pages")
 
     # Get first page dimensions (use round instead of ceil to avoid overflow)
-    pageWidth = round(pdf.pages[0].mediabox.width)
-    pageHeight = round(pdf.pages[0].mediabox.height)
+    page_width = round(pdf.pages[0].mediabox.width)
+    page_height = round(pdf.pages[0].mediabox.height)
 
     # Validate all pages have the same dimensions
     for i, page in enumerate(pdf.pages):
         width = round(page.mediabox.width)
         height = round(page.mediabox.height)
-        if width != pageWidth or height != pageHeight:
-            raise ValueError(f"Page {i+1} has different dimensions ({width}x{height}) than first page ({pageWidth}x{pageHeight})")
+        if width != page_width or height != page_height:
+            raise ValueError(f"Page {i+1} has different dimensions ({width}x{height}) than first page ({page_width}x{page_height})")
 
-    pageDiagonal = math.sqrt(pageWidth**2 + pageHeight**2)
-    print('pageWidth: {}, pageHeight: {}, pageDiagonal: {}'.format(pageWidth,pageHeight,pageDiagonal))
+    page_diagonal = math.sqrt(page_width**2 + page_height**2)
+    print('pageWidth: {}, pageHeight: {}, page_diagonal: {}'.format(page_width, page_height, page_diagonal))
 
-    numNewPages = 1
-    if newSize == 'A4':
-        newWidth = PAPER_SIZES['A4']['width']
-        newHeight = PAPER_SIZES['A4']['height']
-        newDiagonal = PAPER_SIZES['A4']['diagonal']
+    num_new_pages = 1
+    if new_size == 'A4':
+        new_width = PAPER_SIZES['A4']['width']
+        new_height = PAPER_SIZES['A4']['height']
     else:
-        newSize = 'A3'
-        newWidth = PAPER_SIZES['A3']['width']
-        newHeight = PAPER_SIZES['A3']['height']
-        newDiagonal = PAPER_SIZES['A3']['diagonal']
+        new_size = 'A3'
+        new_width = PAPER_SIZES['A3']['width']
+        new_height = PAPER_SIZES['A3']['height']
 
-    print('newWidth: {}, newHeight: {}, newDiagonal: {}'.format(newWidth,newHeight,newDiagonal))
+    new_diagonal = get_diagonal(new_width, new_height)
+
+    print('new_width: {}, new_height: {}, new_diagonal: {}'.format(new_width,new_height,new_diagonal))
     print('........................................')
-    print('Number of pages to merge: {}'.format(numPages))
-    print('Input file: {}.pdf, size: {}'.format(fname,newSize))
+    print('Number of pages to merge: {}'.format(num_pages))
+    print('Input file: {}.pdf, size: {}'.format(fname,new_size))
 
-    if (round(pageDiagonal/newDiagonal,1) == 1.0):
-        if (newSize == 'A4'):
+    if (round(page_diagonal/new_diagonal,1) == 1.0):
+        if (new_size == 'A4'):
             print("Increasing paper size to A3")
-            newWidth = PAPER_SIZES['A3']['width']
-            newHeight = PAPER_SIZES['A3']['height']
-            newDiagonal = PAPER_SIZES['A3']['diagonal']
+            new_width = PAPER_SIZES['A3']['width']
+            new_height = PAPER_SIZES['A3']['height']
+            new_diagonal = get_diagonal(new_width, new_height)
         else:
             print("Cannot merge this file")
     # Ratio 0.7 ≈ 1/√2: One step smaller (A5→A4, A4→A3)
-    if (round(pageDiagonal/newDiagonal,1) == 0.7):
-        numNewPages = math.ceil(numPages/2)
-        print("A5 -> A4 or A4 -> A3 , {} pages".format(numNewPages))
+    if (round(page_diagonal/new_diagonal,1) == 0.7):
+        num_new_pages = math.ceil(num_pages/2)
+        print("A5 -> A4 or A4 -> A3 , {} pages".format(num_new_pages))
         if force_portrait:
             indices = create_matrix(1,2)
             orientation = 'portrait'
@@ -90,86 +95,86 @@ def pdf_merger(fname, newSize, pdf, output, fill, force_portrait):
             orientation = 'landscape'
 
     # Ratio 0.5 ≈ (1/√2)²: Two steps smaller (A6→A4, A5→A3)
-    elif(round(pageDiagonal/newDiagonal,1) == 0.5):
-        numNewPages = math.ceil(numPages/4)
+    elif(round(page_diagonal/new_diagonal,1) == 0.5):
+        num_new_pages = math.ceil(num_pages/4)
         indices = create_matrix(2,2)
-        print("A6 -> A4 or A5 -> A3, {} pages".format(numNewPages))
+        print("A6 -> A4 or A5 -> A3, {} pages".format(num_new_pages))
         orientation = 'portrait'
 
     # Ratio 0.35 ≈ (1/√2)³: Three steps smaller (A7→A4, A6→A3)
-    elif(round(pageDiagonal/newDiagonal,2) == 0.35):
-        numNewPages = math.ceil(numPages/8)
+    elif(round(page_diagonal/new_diagonal,2) == 0.35):
+        num_new_pages = math.ceil(num_pages/8)
         indices = create_matrix(4,2)
         orientation = 'landscape'
-        if newSize == 'A4':
-            print("A7 -> A4, {} pages".format(numNewPages))
+        if new_size == 'A4':
+            print("A7 -> A4, {} pages".format(num_new_pages))
         else:
-            print("A6 -> A3, {} pages".format(numNewPages))
+            print("A6 -> A3, {} pages".format(num_new_pages))
 
     # Ratio 0.25 ≈ (1/√2)⁴: Four steps smaller (A8→A4, A7→A3)
-    elif(round(pageDiagonal/newDiagonal,2) == 0.25):
-        numNewPages = math.ceil(numPages/16)
+    elif(round(page_diagonal/new_diagonal,2) == 0.25):
+        num_new_pages = math.ceil(num_pages/16)
         indices = create_matrix(4,4)
         orientation = 'portrait'
-        if newSize == 'A3':
-            print("A7 -> A3, {} pages".format(numNewPages))
+        if new_size == 'A3':
+            print("A7 -> A3, {} pages".format(num_new_pages))
         else:
-            print("A8 -> A4, {} pages".format(numNewPages))
+            print("A8 -> A4, {} pages".format(num_new_pages))
 
     # Ratio 0.18 ≈ (1/√2)⁵: Five steps smaller (A8→A3)
-    elif(round(pageDiagonal/newDiagonal,2) == 0.18):
-        numNewPages = math.ceil(numPages/32)
+    elif(round(page_diagonal/new_diagonal,2) == 0.18):
+        num_new_pages = math.ceil(num_pages/32)
         indices = create_matrix(8,4)
         orientation = 'landscape'
-        print("A8 -> A3, {} pages".format(numNewPages))
+        print("A8 -> A3, {} pages".format(num_new_pages))
 
     else:
-        print(f"Unknown paper size: diagonal ratio {round(pageDiagonal/newDiagonal,2)}")
-        raise ValueError(f"Unsupported page size conversion. Input diagonal: {pageDiagonal:.2f}, Output diagonal: {newDiagonal:.2f}")
+        print(f"Unknown paper size: diagonal ratio {round(page_diagonal/new_diagonal,2)}")
+        raise ValueError(f"Unsupported page size conversion. Input diagonal: {page_diagonal:.2f}, Output diagonal: {new_diagonal:.2f}")
 
 
     print('........................................')
     writer = PdfWriter()
 
     if (orientation == 'portrait'):
-        translated_page = PageObject.create_blank_page(None, newWidth, newHeight)
+        translated_page = PageObject.create_blank_page(None, new_width, new_height)
     else:
-        translated_page = PageObject.create_blank_page(None, newHeight, newWidth) 
+        translated_page = PageObject.create_blank_page(None, new_height, new_width) 
     i = 0
-    if fill and numPages == 1:
+    if fill and num_pages == 1:
         # Fill mode: duplicate single page to fill output page
         page = 0
-        fullPage = True
+        full_page = True
         for i in range(len(indices)):
             print('{}_part'.format(page+1))
             # Use mergeTranslatedPage to avoid issues with deepcopy
-            x_offset = indices[i][0] * pageWidth
-            y_offset = indices[i][1] * pageHeight
+            x_offset = indices[i][0] * page_width
+            y_offset = indices[i][1] * page_height
             translated_page.mergeTranslatedPage(pdf.pages[page], x_offset, y_offset)
         writer.add_page(translated_page)
 
     else:
         # Normal mode: merge pages sequentially
-        if fill and numPages > 1:
+        if fill and num_pages > 1:
             print("Warning: Fill option only works with single-page PDFs. Processing normally.")
 
-        for page in range(numPages):
+        for page in range(num_pages):
             print('{}_part'.format(page+1))
             # Use mergeTranslatedPage for proper positioning
-            x_offset = indices[i][0] * pageWidth
-            y_offset = indices[i][1] * pageHeight
+            x_offset = indices[i][0] * page_width
+            y_offset = indices[i][1] * page_height
             translated_page.mergeTranslatedPage(pdf.pages[page], x_offset, y_offset)
             i+=1
-            fullPage = False
+            full_page = False
             if (i > len(indices)-1):
                 i = 0
                 writer.add_page(translated_page)
-                fullPage = True
+                full_page = True
                 if (orientation == 'portrait'):
-                    translated_page = PageObject.create_blank_page(None, newWidth, newHeight)
+                    translated_page = PageObject.create_blank_page(None, new_width, new_height)
                 else:
-                    translated_page = PageObject.create_blank_page(None, newHeight, newWidth)
-        if not fullPage:
+                    translated_page = PageObject.create_blank_page(None, new_height, new_width)
+        if not full_page:
             writer.add_page(translated_page)
 
     try:
@@ -182,7 +187,7 @@ def pdf_merger(fname, newSize, pdf, output, fill, force_portrait):
     print('........................................')
     print('{} is written'.format(output))
 
-def create_matrix(n, m):
+def create_matrix(n: int, m: int) -> List[List[int]]:
     """Create a position matrix for arranging pages in an n×m grid.
 
     Pages are arranged from top to bottom, left to right.
@@ -195,7 +200,7 @@ def create_matrix(n, m):
             matrix.append([j, i-1])
     return matrix
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter
