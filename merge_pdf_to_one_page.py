@@ -110,7 +110,7 @@ def pdf_merger(fname, newSize, pdf, output, fill, rotate):
             writer.addPage(translated_page)
                 
         else:
-            Print("else?")
+            print("else?")
     else:
         for page in range(numPages):
             print('{}_part'.format(page+1))
