@@ -35,14 +35,14 @@ def pdf_merger(fname, newSize, pdf, output, fill, rotate):
     if numPages == 0:
         raise ValueError("PDF file has no pages")
 
-    # Get first page dimensions
-    pageWidth = math.ceil(pdf.pages[0].mediabox.width)
-    pageHeight = math.ceil(pdf.pages[0].mediabox.height)
+    # Get first page dimensions (use round instead of ceil to avoid overflow)
+    pageWidth = round(pdf.pages[0].mediabox.width)
+    pageHeight = round(pdf.pages[0].mediabox.height)
 
     # Validate all pages have the same dimensions
     for i, page in enumerate(pdf.pages):
-        width = math.ceil(page.mediabox.width)
-        height = math.ceil(page.mediabox.height)
+        width = round(page.mediabox.width)
+        height = round(page.mediabox.height)
         if width != pageWidth or height != pageHeight:
             raise ValueError(f"Page {i+1} has different dimensions ({width}x{height}) than first page ({pageWidth}x{pageHeight})")
 
@@ -93,14 +93,25 @@ def pdf_merger(fname, newSize, pdf, output, fill, rotate):
         numNewPages = math.ceil(numPages/8)
         indices = create_matrix(4,2)
         rotate = 'landscape'
-        print("A6 -> A3, {} pages".format(numNewPages))
+        if newSize == 'A4':
+            print("A7 -> A4, {} pages".format(numNewPages))
+        else:
+            print("A6 -> A3, {} pages".format(numNewPages))
 
     elif(round(pageDiagonal/newDiagonal,2) == 0.25):
         numNewPages = math.ceil(numPages/16)
         indices = create_matrix(4,4)
         rotate = 'portrait'
-        print("A7 -> A4, {} pages".format(numNewPages))
-    
+        if newSize == 'A3':
+            print("A7 -> A3, {} pages".format(numNewPages))
+        else:
+            print("A8 -> A4, {} pages".format(numNewPages))
+
+    elif(round(pageDiagonal/newDiagonal,2) == 0.18):
+        numNewPages = math.ceil(numPages/32)
+        indices = create_matrix(8,4)
+        rotate = 'landscape'
+        print("A8 -> A3, {} pages".format(numNewPages))
 
     else:
             print("Unknown paper size")
@@ -114,25 +125,29 @@ def pdf_merger(fname, newSize, pdf, output, fill, rotate):
     else:
         translated_page = PageObject.create_blank_page(None, newHeight, newWidth) 
     i = 0
-    if fill:
-        if (numPages == 1):
-            page = 0
-            fullPage = True
-            for i in range(len(indices)):
-                print('{}_part'.format(page+1))
-                sub_page = pdf.pages[page]
-                sub_page.add_transformation(Transformation().translate(indices[i][0]*pageWidth , indices[i][1]*pageHeight))
-                translated_page.merge_page(sub_page)
-            writer.add_page(translated_page)
-                
-        else:
-            print("else?")
+    if fill and numPages == 1:
+        # Fill mode: duplicate single page to fill output page
+        page = 0
+        fullPage = True
+        for i in range(len(indices)):
+            print('{}_part'.format(page+1))
+            # Use mergeTranslatedPage to avoid issues with deepcopy
+            x_offset = indices[i][0] * pageWidth
+            y_offset = indices[i][1] * pageHeight
+            translated_page.mergeTranslatedPage(pdf.pages[page], x_offset, y_offset)
+        writer.add_page(translated_page)
+
     else:
+        # Normal mode: merge pages sequentially
+        if fill and numPages > 1:
+            print("Warning: Fill option only works with single-page PDFs. Processing normally.")
+
         for page in range(numPages):
             print('{}_part'.format(page+1))
-            sub_page = pdf.pages[page]
-            sub_page.add_transformation(Transformation().translate(indices[i][0]*pageWidth , indices[i][1]*pageHeight))
-            translated_page.merge_page(sub_page)
+            # Use mergeTranslatedPage for proper positioning
+            x_offset = indices[i][0] * pageWidth
+            y_offset = indices[i][1] * pageHeight
+            translated_page.mergeTranslatedPage(pdf.pages[page], x_offset, y_offset)
             i+=1
             fullPage = False
             if (i > len(indices)-1):
@@ -140,11 +155,11 @@ def pdf_merger(fname, newSize, pdf, output, fill, rotate):
                 writer.add_page(translated_page)
                 fullPage = True
                 if (rotate == 'portrait'):
-                    translated_page = PageObject.create_blank_page(None, newWidth, newHeight) 
+                    translated_page = PageObject.create_blank_page(None, newWidth, newHeight)
                 else:
-                    translated_page = PageObject.create_blank_page(None, newHeight, newWidth) 
-    if not fullPage:
-        writer.add_page(translated_page)
+                    translated_page = PageObject.create_blank_page(None, newHeight, newWidth)
+        if not fullPage:
+            writer.add_page(translated_page)
 
     try:
         with open(output, 'wb') as f:
