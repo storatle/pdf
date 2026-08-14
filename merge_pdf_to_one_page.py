@@ -150,7 +150,9 @@ def pdf_merger(fname: str, new_size: str, pdf: PdfReader, output: str, fill: boo
             # Use mergeTranslatedPage to avoid issues with deepcopy
             x_offset = indices[i][0] * page_width
             y_offset = indices[i][1] * page_height
-            translated_page.mergeTranslatedPage(pdf.pages[page], x_offset, y_offset)
+            page2 = pdf.pages[page]
+            page2.add_transformation(Transformation().translate(x_offset, y_offset))
+            translated_page.merge_page(page2)
         writer.add_page(translated_page)
 
     else:
@@ -163,7 +165,9 @@ def pdf_merger(fname: str, new_size: str, pdf: PdfReader, output: str, fill: boo
             # Use mergeTranslatedPage for proper positioning
             x_offset = indices[i][0] * page_width
             y_offset = indices[i][1] * page_height
-            translated_page.mergeTranslatedPage(pdf.pages[page], x_offset, y_offset)
+            page2 = pdf.pages[page]
+            page2.add_transformation(Transformation().translate(x_offset, y_offset))
+            translated_page.merge_page(page2)
             i+=1
             full_page = False
             if (i > len(indices)-1):
