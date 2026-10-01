@@ -1,4 +1,5 @@
 *.pdf
-*.xlxs
+*.xlsx
 *.txt
 *.swp
+__pycache__/
