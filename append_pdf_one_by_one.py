@@ -1,7 +1,19 @@
 #!/usr/bin/env python
 """Append pdf files to one pdf file
-Merge all given files into one pdf-file.
-Default filenane is merge_file.pdf
+
+Merges all the given PDF files into one PDF file, in the order they are
+given on the command line. The default output filename is merge_file.pdf.
+
+Usage:
+    python append_pdf_one_by_one.py file1.pdf file2.pdf file3.pdf
+    python append_pdf_one_by_one.py *.pdf -o combined.pdf
+    python append_pdf_one_by_one.py file1.pdf file2.pdf --open
+
+Requirements:
+    - Python 3
+    - PyPDF2:  pip install PyPDF2
+    - Optional, for --open on Linux: the Evince PDF viewer
+      (sudo apt install evince). On Windows the default PDF program is used.
 """
 from PyPDF2 import PdfMerger
 import argparse
