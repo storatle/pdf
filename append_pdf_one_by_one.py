@@ -11,27 +11,27 @@ Usage:
 
 Requirements:
     - Python 3
-    - PyPDF2:  pip install PyPDF2
+    - pypdf:  sudo apt install python3-pypdf  (Ubuntu/WSL)
+              or  pip install pypdf  (Windows/other)
     - Optional, for --open on Linux: the Evince PDF viewer
       (sudo apt install evince). On Windows the default PDF program is used.
 """
-from PyPDF2 import PdfMerger
+from pypdf import PdfWriter
 import argparse
 import sys
 import subprocess
 
 def PDFmerge(pdfs, output):
     """Merge the PDF files in `pdfs` (in the given order) into the file `output`."""
-    # PdfMerger collects pages from several PDFs and writes them as one document
-    pdfMerger = PdfMerger()
-#    pdfWriter = PdfFileWriter()
+    # PdfWriter collects pages from several PDFs and writes them as one document
+    pdfWriter = PdfWriter()
 
     # appending pdfs one by one
     for pdf in pdfs:
         # Show which file is being processed
         print(pdf)
         # Add all pages of this PDF to the end of the merged document
-        pdfMerger.append(pdf)
+        pdfWriter.append(pdf)
         # Old approach using PdfFileReader/PdfFileWriter, kept for reference:
         #with open(pdf, 'rb') as f:
 #        pdfReader = PdfFileReader(f)
@@ -42,8 +42,7 @@ def PDFmerge(pdfs, output):
 
     # writing combined pdf to output pdf file
     pdfOutputfile = open(output,'wb')
-    pdfMerger.write(pdfOutputfile)
-    #pdfWriter.write(pdfOutputfile)
+    pdfWriter.write(pdfOutputfile)
     pdfOutputfile.close()
 
 def main():
