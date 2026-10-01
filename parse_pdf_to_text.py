@@ -6,7 +6,7 @@ The text will be placed in a text fiel with the same name as pdf file
 # -*- coding: utf-8 -*-
 import argparse
 import os
-from PyPDF2 import PdfFileReader
+from pypdf import PdfReader
 
 def main():
     parser = argparse.ArgumentParser(
@@ -16,14 +16,14 @@ def main():
     parser.add_argument('input', help='Relative or absolute path of the input PDF file')
 
     args = parser.parse_args()
-    pdfreader = PdfFileReader(args.input)
+    pdfreader = PdfReader(args.input)
     fname = os.path.splitext(os.path.basename(args.input))[0]
-    x = pdfreader.numPages
+    x = len(pdfreader.pages)
     outputfile = open('{}.txt'.format(fname),'w',encoding="utf-8")
     text = ""
     for i in range (0,x):
-        pageobj = pdfreader.getPage(i)
-        text += pageobj.extractText()#.encode('latin-1')
+        pageobj = pdfreader.pages[i]
+        text += pageobj.extract_text()#.encode('latin-1')
     print(text)
     outputfile.write(text)
     outputfile.close()

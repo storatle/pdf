@@ -12,7 +12,7 @@ This tool automatically detects the input PDF page size and arranges multiple pa
 ## Requirements
 
 ```bash
-pip install PyPDF2
+pip install pypdf
 ```
 
 ## Usage
@@ -130,7 +130,7 @@ python merge_pdf_to_one_page.py small_sticker.pdf -s A4 -f
 
 - **Consistent page sizes**: All pages in the input PDF must have the same dimensions
 - **Supported sizes**: A4, A5, A6, A7, or A8 (standard or near-standard dimensions)
-- **Valid PDF**: File must be readable by PyPDF2
+- **Valid PDF**: File must be readable by pypdf
 
 ## Error Handling
 
@@ -143,7 +143,7 @@ The script will report errors for:
 ## Notes
 
 - Pages are positioned starting from the **top-left corner**
-- The script uses the `mergeTranslatedPage()` method for reliable page positioning
+- The script uses the `merge_transformed_page()` method for reliable page positioning
 - Dimensions are rounded (not ceiling) to prevent overflow issues
 - The `-r` (rotate) flag can adjust orientation for specific conversions
 

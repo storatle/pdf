@@ -19,8 +19,8 @@ You can override paper size with -s (--size) argument
 
 """
 from typing import List
-from PyPDF2 import PdfReader, PdfWriter, Transformation
-from PyPDF2 import PageObject
+from pypdf import PdfReader, PdfWriter, Transformation
+from pypdf import PageObject
 import os
 import math
 import argparse
@@ -147,10 +147,10 @@ def pdf_merger(fname: str, new_size: str, pdf: PdfReader, output: str, fill: boo
         full_page = True
         for i in range(len(indices)):
             print('{}_part'.format(page+1))
-            # Use mergeTranslatedPage to avoid issues with deepcopy
+            # Use merge_transformed_page to avoid issues with deepcopy
             x_offset = indices[i][0] * page_width
             y_offset = indices[i][1] * page_height
-            translated_page.mergeTranslatedPage(pdf.pages[page], x_offset, y_offset)
+            translated_page.merge_transformed_page(pdf.pages[page], Transformation().translate(x_offset, y_offset))
         writer.add_page(translated_page)
 
     else:
@@ -160,10 +160,10 @@ def pdf_merger(fname: str, new_size: str, pdf: PdfReader, output: str, fill: boo
 
         for page in range(num_pages):
             print('{}_part'.format(page+1))
-            # Use mergeTranslatedPage for proper positioning
+            # Use merge_transformed_page for proper positioning
             x_offset = indices[i][0] * page_width
             y_offset = indices[i][1] * page_height
-            translated_page.mergeTranslatedPage(pdf.pages[page], x_offset, y_offset)
+            translated_page.merge_transformed_page(pdf.pages[page], Transformation().translate(x_offset, y_offset))
             i+=1
             full_page = False
             if (i > len(indices)-1):

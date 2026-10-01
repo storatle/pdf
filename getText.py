@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 # importing required modules
-from PyPDF2 import PdfReader
+from pypdf import PdfReader
 import os
 import argparse
 

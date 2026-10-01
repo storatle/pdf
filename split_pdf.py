@@ -1,6 +1,6 @@
 #!/usr/bin/env python
-from PyPDF2 import PdfReader, PdfWriter
-from PyPDF2 import PageObject
+from pypdf import PdfReader, PdfWriter
+from pypdf import PageObject
 import os
 import math
 import argparse
@@ -15,10 +15,10 @@ def pdf_splitter(path, split_page):
     pdf = PdfReader(path)
     if split_page == 0:
         #Split at every page
-        for page in range(pdf.getNumPages()):
+        for page in range(len(pdf.pages)):
     
             pdf_writer = PdfWriter()
-            pdf_writer.addPage(pdf.getPage(page))
+            pdf_writer.add_page(pdf.pages[page])
             output_filename = '{}_page_{}.pdf'.format(
                 fname, page+1)
     
